@@ -12,8 +12,9 @@ class Settings(BaseSettings):
     secret_key: str = Field(default="change-me-in-production")
     access_token_expire_minutes: int = 60 * 24
     algorithm: str = "HS256"
-    openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
     cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:5173",

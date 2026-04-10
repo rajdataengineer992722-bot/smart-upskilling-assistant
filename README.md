@@ -5,7 +5,7 @@ An AI-powered learning companion for employees with personalized roadmaps, skill
 ## Tech Stack
 
 - Frontend: React, Vite, Tailwind CSS, React Query, Axios, Recharts, local ShadCN-style UI components
-- Backend: FastAPI, Motor, JWT auth, OpenAI API integration
+- Backend: FastAPI, Motor, JWT auth, Groq API integration
 - Database: MongoDB
 - DevOps: Docker Compose, GitHub Actions CI
 
@@ -71,8 +71,9 @@ cp .env.example .env
 
 Variables:
 
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL`
+- `GROQ_API_KEY`
+- `GROQ_MODEL`
+- `GROQ_BASE_URL`
 - `MONGODB_URI`
 - `DATABASE_NAME`
 - `SECRET_KEY`
@@ -118,7 +119,7 @@ docker compose up --build
 
 ## AI Integration
 
-The backend uses OpenAI when `OPENAI_API_KEY` is configured. If no API key is present, it falls back to deterministic demo logic so the product still works for local development and evaluation.
+The backend uses Groq when `GROQ_API_KEY` is configured. If no API key is present, it falls back to deterministic demo logic so the product still works for local development and evaluation.
 
 Generated outputs include:
 
@@ -189,8 +190,9 @@ Recommended Render settings:
 
 Environment variables on Render:
 
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL=gpt-4o-mini`
+- `GROQ_API_KEY`
+- `GROQ_MODEL=llama-3.3-70b-versatile`
+- `GROQ_BASE_URL=https://api.groq.com/openai/v1`
 - `MONGODB_URI=<your Atlas URI>`
 - `DATABASE_NAME=smart_upskilling`
 - `SECRET_KEY=<strong random string>`

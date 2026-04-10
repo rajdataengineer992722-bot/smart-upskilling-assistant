@@ -1,8 +1,7 @@
 import json
 from typing import Any
 
-from openai import OpenAI
-from openai import OpenAIError
+from openai import OpenAI, OpenAIError
 
 from app.core.config import settings
 from app.db.mongodb import get_database
@@ -115,10 +114,13 @@ def _fallback_weekly_plan(context: dict[str, Any]) -> WeeklyPlanResponse:
     )
 
 
-def _get_openai_client() -> OpenAI | None:
-    if not settings.openai_api_key:
+def _get_groq_client() -> OpenAI | None:
+    if not settings.groq_api_key:
         return None
-    return OpenAI(api_key=settings.openai_api_key)
+    return OpenAI(
+        api_key=settings.groq_api_key,
+        base_url=settings.groq_base_url,
+    )
 
 
 async def _store_learning_plan(user_id: str, plan: WeeklyPlanResponse) -> None:
@@ -142,14 +144,14 @@ def _parse_json_response(content: str) -> dict[str, Any]:
     return json.loads(content.strip())
 
 
-def _log_openai_failure(operation: str, exc: Exception) -> None:
+def _log_ai_failure(operation: str, exc: Exception) -> None:
     # Keep failures visible in logs while allowing the app to fall back gracefully.
-    print(f"OpenAI {operation} failed, falling back to local logic: {exc}")
+    print(f"Groq {operation} failed, falling back to local logic: {exc}")
 
 
 async def generate_skill_gap_analysis(user: dict[str, Any], payload: RecommendationRequest) -> SkillGapResponse:
     context = _build_context(user, payload)
-    client = _get_openai_client()
+    client = _get_groq_client()
     if not client:
         return _fallback_skill_gap(context["role"], context["skills"])
 
@@ -159,15 +161,20 @@ async def generate_skill_gap_analysis(user: dict[str, Any], payload: Recommendat
         Analyze the employee profile and return JSON with keys:
         overview (string), gaps (array of objects with skill, current_level, target_level, gap), priority_skills (array of strings).
         Employee profile: {json.dumps(context)}
+        Return only valid JSON.
         """
-        response = client.responses.create(
-            model=settings.openai_model,
-            input=prompt,
-            text={"format": {"type": "json_object"}},
+        response = client.chat.completions.create(
+            model=settings.groq_model,
+            temperature=0.2,
+            messages=[
+                {"role": "system", "content": "Return only valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
         )
-        return SkillGapResponse(**_parse_json_response(response.output_text))
+        content = response.choices[0].message.content or "{}"
+        return SkillGapResponse(**_parse_json_response(content))
     except (OpenAIError, ValueError, KeyError, json.JSONDecodeError) as exc:
-        _log_openai_failure("skill gap analysis", exc)
+        _log_ai_failure("skill gap analysis", exc)
         return _fallback_skill_gap(context["role"], context["skills"])
 
 
@@ -176,7 +183,7 @@ async def generate_learning_recommendations(
     payload: RecommendationRequest,
 ) -> RecommendationResponse:
     context = _build_context(user, payload)
-    client = _get_openai_client()
+    client = _get_groq_client()
     if not client:
         return _fallback_recommendations(context)
 
@@ -189,15 +196,20 @@ async def generate_learning_recommendations(
         recommendations (array of objects with title, source, difficulty, reason),
         real_world_tasks (array of strings).
         Profile: {json.dumps(context)}
+        Return only valid JSON.
         """
-        response = client.responses.create(
-            model=settings.openai_model,
-            input=prompt,
-            text={"format": {"type": "json_object"}},
+        response = client.chat.completions.create(
+            model=settings.groq_model,
+            temperature=0.3,
+            messages=[
+                {"role": "system", "content": "Return only valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
         )
-        return RecommendationResponse(**_parse_json_response(response.output_text))
+        content = response.choices[0].message.content or "{}"
+        return RecommendationResponse(**_parse_json_response(content))
     except (OpenAIError, ValueError, KeyError, json.JSONDecodeError) as exc:
-        _log_openai_failure("learning recommendations", exc)
+        _log_ai_failure("learning recommendations", exc)
         return _fallback_recommendations(context)
 
 
@@ -208,7 +220,7 @@ async def generate_weekly_learning_plan(
     context = _build_context(user, payload)
     context["available_hours"] = payload.available_hours
 
-    client = _get_openai_client()
+    client = _get_groq_client()
     if not client:
         plan = _fallback_weekly_plan(context)
         await _store_learning_plan(user["id"], plan)
@@ -221,15 +233,20 @@ async def generate_weekly_learning_plan(
         summary (string), weekly_plan (array of objects with day, focus, tasks), stretch_goal (string).
         Make it practical, realistic, and aligned with available_hours={payload.available_hours}.
         Employee context: {json.dumps(context)}
+        Return only valid JSON.
         """
-        response = client.responses.create(
-            model=settings.openai_model,
-            input=prompt,
-            text={"format": {"type": "json_object"}},
+        response = client.chat.completions.create(
+            model=settings.groq_model,
+            temperature=0.3,
+            messages=[
+                {"role": "system", "content": "Return only valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
         )
-        plan = WeeklyPlanResponse(**_parse_json_response(response.output_text))
+        content = response.choices[0].message.content or "{}"
+        plan = WeeklyPlanResponse(**_parse_json_response(content))
     except (OpenAIError, ValueError, KeyError, json.JSONDecodeError) as exc:
-        _log_openai_failure("weekly learning plan", exc)
+        _log_ai_failure("weekly learning plan", exc)
         plan = _fallback_weekly_plan(context)
 
     await _store_learning_plan(user["id"], plan)
@@ -237,7 +254,7 @@ async def generate_weekly_learning_plan(
 
 
 async def generate_chat_response(user: dict[str, Any], payload: ChatRequest) -> ChatResponse:
-    client = _get_openai_client()
+    client = _get_groq_client()
     if not client:
         latest_question = payload.messages[-1].content if payload.messages else "What should I learn next?"
         return ChatResponse(
@@ -260,9 +277,13 @@ async def generate_chat_response(user: dict[str, Any], payload: ChatRequest) -> 
             {"role": "system", "content": system_prompt},
             *[message.model_dump() for message in payload.messages],
         ]
-        response = client.responses.create(model=settings.openai_model, input=conversation)
+        response = client.chat.completions.create(
+            model=settings.groq_model,
+            temperature=0.4,
+            messages=conversation,
+        )
         return ChatResponse(
-            message=response.output_text,
+            message=response.choices[0].message.content or "I can help you build your next learning step.",
             suggestions=[
                 "What should I learn next?",
                 "Give me a practice project",
@@ -270,10 +291,10 @@ async def generate_chat_response(user: dict[str, Any], payload: ChatRequest) -> 
             ],
         )
     except OpenAIError as exc:
-        _log_openai_failure("chat response", exc)
+        _log_ai_failure("chat response", exc)
         latest_question = payload.messages[-1].content if payload.messages else "What should I learn next?"
         return ChatResponse(
-            message=f"Your OpenAI key is configured, but the API request could not complete right now. I’ll keep helping with a local fallback plan. Based on your profile, focus on your top skill gaps next. You asked: {latest_question}",
+            message=f"Your Groq key is configured, but the API request could not complete right now. I’ll keep helping with a local fallback plan. Based on your profile, focus on your top skill gaps next. You asked: {latest_question}",
             suggestions=[
                 "Create a 5-day practice sprint for me",
                 "Give me a real-world task based on my goal",
