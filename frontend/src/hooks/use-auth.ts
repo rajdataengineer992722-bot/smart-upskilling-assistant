@@ -1,8 +1,8 @@
-import { useMemo } from "react";
-import { clearToken, getToken, setToken } from "@/lib/storage";
+import { useMemo, useSyncExternalStore } from "react";
+import { clearToken, getToken, setToken, subscribeToTokenChange } from "@/lib/storage";
 
 export function useAuth() {
-  const token = getToken();
+  const token = useSyncExternalStore(subscribeToTokenChange, getToken, () => null);
 
   return useMemo(
     () => ({
