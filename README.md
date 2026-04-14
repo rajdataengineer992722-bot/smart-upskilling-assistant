@@ -1,6 +1,6 @@
 # Smart Upskilling Assistant
 
-An AI-powered learning companion for employees with personalized roadmaps, skill gap analysis, weekly learning plans, chat-based coaching, practical tasks, and gamification.
+An AI-powered learning companion for employees with personalized roadmaps, skill gap analysis, weekly learning plans, grounded chat-based coaching, practical tasks, gamification, and a built-in knowledge base for RAG.
 
 ## Tech Stack
 
@@ -45,6 +45,8 @@ An AI-powered learning companion for employees with personalized roadmaps, skill
 - AI-generated learning recommendations
 - Weekly learning plan generation
 - Context-aware chat assistant
+- Knowledge-base ingestion with chunked retrieval
+- Grounded RAG responses with source snippets
 - Gamification with badges and leaderboard
 - Responsive analytics dashboard
 
@@ -58,6 +60,9 @@ An AI-powered learning companion for employees with personalized roadmaps, skill
 - `POST /api/generate-weekly-plan`
 - `POST /api/skill-gap-analysis`
 - `POST /api/chat`
+- `GET /api/knowledge/documents`
+- `POST /api/knowledge/documents`
+- `POST /api/knowledge/search`
 - `GET /api/badges`
 - `GET /api/leaderboard`
 
@@ -128,6 +133,18 @@ Generated outputs include:
 - Weekly plans
 - Real-world practice tasks
 - Conversational coaching replies
+
+## RAG Workflow
+
+The app now supports a pragmatic retrieval-augmented generation flow:
+
+1. Add knowledge documents from the Knowledge Base page.
+2. The backend chunks and stores those documents in MongoDB.
+3. Each AI request retrieves the most relevant chunks using BM25-based ranking with role and tag boosting.
+4. The retrieved sources are injected into the prompt before Groq generates the final response.
+5. The frontend displays the grounding sources used for recommendations, plans, and chat.
+
+This means you can ground the assistant in your own competency matrices, internal learning playbooks, approved course lists, and team-specific guidance without introducing a separate vector database.
 
 ## Production Notes
 

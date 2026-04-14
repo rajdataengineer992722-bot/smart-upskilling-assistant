@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Bot, SendHorizonal, Sparkles } from "lucide-react";
 import { sendChat } from "@/api/assistant";
+import { SourceList } from "@/components/source-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { ChatMessage } from "@/types";
+import type { ChatMessage, KnowledgeSource } from "@/types";
 
 const starterMessages: ChatMessage[] = [
   {
@@ -17,6 +18,7 @@ const starterMessages: ChatMessage[] = [
 export function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>(starterMessages);
   const [draft, setDraft] = useState("");
+  const [sources, setSources] = useState<KnowledgeSource[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([
     "What should I learn next?",
     "Give me practice tasks",
@@ -28,6 +30,7 @@ export function ChatPanel() {
     onSuccess: (response, outboundMessages) => {
       setMessages([...outboundMessages, { role: "assistant", content: response.message }]);
       setSuggestions(response.suggestions);
+      setSources(response.sources);
       setDraft("");
     },
   });
@@ -82,6 +85,8 @@ export function ChatPanel() {
             </button>
           ))}
         </div>
+
+        <SourceList sources={sources} title="Knowledge used in this answer" />
 
         <div className="flex gap-3">
           <Input

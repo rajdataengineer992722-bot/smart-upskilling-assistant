@@ -1,4 +1,4 @@
-import { Award, BrainCircuit, LayoutDashboard, LogOut, Sparkles } from "lucide-react";
+import { Award, BookOpenText, BrainCircuit, LayoutDashboard, LogOut, Sparkles } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/recommendations", label: "Recommendations", icon: BrainCircuit },
+  { to: "/knowledge", label: "Knowledge Base", icon: BookOpenText },
   { to: "/gamification", label: "Gamification", icon: Award },
 ];
 

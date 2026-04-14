@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from app.schemas.knowledge import KnowledgeSource
+
 
 class RecommendationRequest(BaseModel):
     role: str | None = None
@@ -19,6 +21,7 @@ class RecommendationResponse(BaseModel):
     skill_gaps: list[str]
     recommendations: list[CourseRecommendation]
     real_world_tasks: list[str]
+    sources: list[KnowledgeSource] = Field(default_factory=list)
 
 
 class WeeklyPlanRequest(BaseModel):
@@ -38,6 +41,7 @@ class WeeklyPlanResponse(BaseModel):
     summary: str
     weekly_plan: list[DailyTask]
     stretch_goal: str
+    sources: list[KnowledgeSource] = Field(default_factory=list)
 
 
 class SkillGapItem(BaseModel):
@@ -51,6 +55,7 @@ class SkillGapResponse(BaseModel):
     overview: str
     gaps: list[SkillGapItem]
     priority_skills: list[str]
+    sources: list[KnowledgeSource] = Field(default_factory=list)
 
 
 class ChatMessage(BaseModel):
@@ -60,8 +65,10 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
+    use_rag: bool = True
 
 
 class ChatResponse(BaseModel):
     message: str
     suggestions: list[str]
+    sources: list[KnowledgeSource] = Field(default_factory=list)

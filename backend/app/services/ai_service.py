@@ -14,6 +14,8 @@ from app.schemas.ai import (
     WeeklyPlanRequest,
     WeeklyPlanResponse,
 )
+from app.schemas.knowledge import KnowledgeSource
+from app.services.knowledge_service import search_knowledge_sources
 
 REQUIRED_SKILLS_BY_ROLE = {
     "Software Engineer": ["Data Structures", "System Design", "APIs", "Testing", "Cloud Basics"],
@@ -52,6 +54,7 @@ def _fallback_skill_gap(role: str, skills: list[str]) -> SkillGapResponse:
         overview=f"Focus on the largest gaps for your {role} growth path.",
         gaps=sorted_gaps,
         priority_skills=[item["skill"] for item in sorted_gaps[:3]],
+        sources=[],
     )
 
 
@@ -75,6 +78,7 @@ def _fallback_recommendations(context: dict[str, Any]) -> RecommendationResponse
         skill_gaps=gap_response.priority_skills,
         recommendations=recommendations,
         real_world_tasks=tasks,
+        sources=[],
     )
 
 
@@ -111,6 +115,7 @@ def _fallback_weekly_plan(context: dict[str, Any]) -> WeeklyPlanResponse:
         summary="A balanced plan mixing theory, practice, and reflection.",
         weekly_plan=plan,
         stretch_goal="Share your proof of concept with a peer or manager for feedback.",
+        sources=[],
     )
 
 
@@ -149,11 +154,50 @@ def _log_ai_failure(operation: str, exc: Exception) -> None:
     print(f"Groq {operation} failed, falling back to local logic: {exc}")
 
 
+async def _retrieve_context_sources(
+    user: dict[str, Any],
+    role: str,
+    skills: list[str],
+    goals: list[str],
+    extra_query: str = "",
+    top_k: int = 4,
+) -> list[KnowledgeSource]:
+    query_parts = [role, *skills[:4], *goals[:4]]
+    if extra_query:
+        query_parts.append(extra_query)
+    query = " | ".join(part for part in query_parts if part)
+    return await search_knowledge_sources(query=query, role=role, tags=goals or skills, top_k=top_k)
+
+
+def _sources_to_prompt_context(sources: list[KnowledgeSource]) -> str:
+    if not sources:
+        return "No internal knowledge sources were retrieved."
+    sections = []
+    for index, source in enumerate(sources, start=1):
+        sections.append(
+            f"[Source {index}] Title: {source.title}\n"
+            f"Origin: {source.source}\n"
+            f"Roles: {', '.join(source.roles) or 'General'}\n"
+            f"Tags: {', '.join(source.tags) or 'None'}\n"
+            f"Snippet: {source.snippet}"
+        )
+    return "\n\n".join(sections)
+
+
 async def generate_skill_gap_analysis(user: dict[str, Any], payload: RecommendationRequest) -> SkillGapResponse:
     context = _build_context(user, payload)
+    sources = await _retrieve_context_sources(
+        user=user,
+        role=context["role"],
+        skills=context["skills"],
+        goals=context["goals"],
+        extra_query="skill expectations competency learning path",
+    )
     client = _get_groq_client()
     if not client:
-        return _fallback_skill_gap(context["role"], context["skills"])
+        fallback = _fallback_skill_gap(context["role"], context["skills"])
+        fallback.sources = sources
+        return fallback
 
     try:
         prompt = f"""
@@ -161,6 +205,8 @@ async def generate_skill_gap_analysis(user: dict[str, Any], payload: Recommendat
         Analyze the employee profile and return JSON with keys:
         overview (string), gaps (array of objects with skill, current_level, target_level, gap), priority_skills (array of strings).
         Employee profile: {json.dumps(context)}
+        Retrieved internal learning context:
+        {_sources_to_prompt_context(sources)}
         Return only valid JSON.
         """
         response = client.chat.completions.create(
@@ -172,10 +218,14 @@ async def generate_skill_gap_analysis(user: dict[str, Any], payload: Recommendat
             ],
         )
         content = response.choices[0].message.content or "{}"
-        return SkillGapResponse(**_parse_json_response(content))
+        parsed = SkillGapResponse(**_parse_json_response(content))
+        parsed.sources = sources
+        return parsed
     except (OpenAIError, ValueError, KeyError, json.JSONDecodeError) as exc:
         _log_ai_failure("skill gap analysis", exc)
-        return _fallback_skill_gap(context["role"], context["skills"])
+        fallback = _fallback_skill_gap(context["role"], context["skills"])
+        fallback.sources = sources
+        return fallback
 
 
 async def generate_learning_recommendations(
@@ -183,9 +233,18 @@ async def generate_learning_recommendations(
     payload: RecommendationRequest,
 ) -> RecommendationResponse:
     context = _build_context(user, payload)
+    sources = await _retrieve_context_sources(
+        user=user,
+        role=context["role"],
+        skills=context["skills"],
+        goals=context["goals"],
+        extra_query="courses learning materials roadmap project practice tasks",
+    )
     client = _get_groq_client()
     if not client:
-        return _fallback_recommendations(context)
+        fallback = _fallback_recommendations(context)
+        fallback.sources = sources
+        return fallback
 
     try:
         prompt = f"""
@@ -196,6 +255,9 @@ async def generate_learning_recommendations(
         recommendations (array of objects with title, source, difficulty, reason),
         real_world_tasks (array of strings).
         Profile: {json.dumps(context)}
+        Retrieved internal learning context:
+        {_sources_to_prompt_context(sources)}
+        Prefer recommendations grounded in the retrieved sources.
         Return only valid JSON.
         """
         response = client.chat.completions.create(
@@ -207,10 +269,14 @@ async def generate_learning_recommendations(
             ],
         )
         content = response.choices[0].message.content or "{}"
-        return RecommendationResponse(**_parse_json_response(content))
+        parsed = RecommendationResponse(**_parse_json_response(content))
+        parsed.sources = sources
+        return parsed
     except (OpenAIError, ValueError, KeyError, json.JSONDecodeError) as exc:
         _log_ai_failure("learning recommendations", exc)
-        return _fallback_recommendations(context)
+        fallback = _fallback_recommendations(context)
+        fallback.sources = sources
+        return fallback
 
 
 async def generate_weekly_learning_plan(
@@ -219,10 +285,18 @@ async def generate_weekly_learning_plan(
 ) -> WeeklyPlanResponse:
     context = _build_context(user, payload)
     context["available_hours"] = payload.available_hours
+    sources = await _retrieve_context_sources(
+        user=user,
+        role=context["role"],
+        skills=context["skills"],
+        goals=context["goals"],
+        extra_query="weekly plan practice roadmap exercises",
+    )
 
     client = _get_groq_client()
     if not client:
         plan = _fallback_weekly_plan(context)
+        plan.sources = sources
         await _store_learning_plan(user["id"], plan)
         return plan
 
@@ -233,6 +307,9 @@ async def generate_weekly_learning_plan(
         summary (string), weekly_plan (array of objects with day, focus, tasks), stretch_goal (string).
         Make it practical, realistic, and aligned with available_hours={payload.available_hours}.
         Employee context: {json.dumps(context)}
+        Retrieved internal learning context:
+        {_sources_to_prompt_context(sources)}
+        Ground the plan in the retrieved sources when possible.
         Return only valid JSON.
         """
         response = client.chat.completions.create(
@@ -245,18 +322,32 @@ async def generate_weekly_learning_plan(
         )
         content = response.choices[0].message.content or "{}"
         plan = WeeklyPlanResponse(**_parse_json_response(content))
+        plan.sources = sources
     except (OpenAIError, ValueError, KeyError, json.JSONDecodeError) as exc:
         _log_ai_failure("weekly learning plan", exc)
         plan = _fallback_weekly_plan(context)
+        plan.sources = sources
 
     await _store_learning_plan(user["id"], plan)
     return plan
 
 
 async def generate_chat_response(user: dict[str, Any], payload: ChatRequest) -> ChatResponse:
+    latest_question = payload.messages[-1].content if payload.messages else "What should I learn next?"
+    sources = (
+        await _retrieve_context_sources(
+            user=user,
+            role=user.get("role", "Software Engineer"),
+            skills=user.get("skills", []),
+            goals=user.get("goals", []),
+            extra_query=latest_question,
+            top_k=5,
+        )
+        if payload.use_rag
+        else []
+    )
     client = _get_groq_client()
     if not client:
-        latest_question = payload.messages[-1].content if payload.messages else "What should I learn next?"
         return ChatResponse(
             message=f"Based on your role as {user.get('role', 'a learner')}, focus next on your top skill gaps and apply them in a small workplace project. You asked: {latest_question}",
             suggestions=[
@@ -264,6 +355,7 @@ async def generate_chat_response(user: dict[str, Any], payload: ChatRequest) -> 
                 "Give me a real-world task based on my goal",
                 "Quiz me on one weak skill",
             ],
+            sources=sources,
         )
 
     try:
@@ -271,7 +363,10 @@ async def generate_chat_response(user: dict[str, Any], payload: ChatRequest) -> 
         You are a context-aware Smart Upskilling Assistant for employees.
         Personalize responses using the employee profile below.
         Keep responses actionable, concise, and encouraging.
+        When internal knowledge sources are provided, prioritize and cite them implicitly in your answer.
         Employee profile: {json.dumps(user)}
+        Retrieved internal learning context:
+        {_sources_to_prompt_context(sources)}
         """
         conversation = [
             {"role": "system", "content": system_prompt},
@@ -289,10 +384,10 @@ async def generate_chat_response(user: dict[str, Any], payload: ChatRequest) -> 
                 "Give me a practice project",
                 "Create a weekly plan",
             ],
+            sources=sources,
         )
     except OpenAIError as exc:
         _log_ai_failure("chat response", exc)
-        latest_question = payload.messages[-1].content if payload.messages else "What should I learn next?"
         return ChatResponse(
             message=f"Your Groq key is configured, but the API request could not complete right now. I’ll keep helping with a local fallback plan. Based on your profile, focus on your top skill gaps next. You asked: {latest_question}",
             suggestions=[
@@ -300,4 +395,5 @@ async def generate_chat_response(user: dict[str, Any], payload: ChatRequest) -> 
                 "Give me a real-world task based on my goal",
                 "Quiz me on one weak skill",
             ],
+            sources=sources,
         )

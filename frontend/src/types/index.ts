@@ -16,11 +16,32 @@ export type Recommendation = {
   reason: string;
 };
 
+export type KnowledgeSource = {
+  document_id: string;
+  title: string;
+  source: string;
+  snippet: string;
+  score: number;
+  tags: string[];
+  roles: string[];
+};
+
+export type KnowledgeDocumentSummary = {
+  id: string;
+  title: string;
+  source: string;
+  tags: string[];
+  roles: string[];
+  chunk_count: number;
+  created_at: string;
+};
+
 export type RecommendationResponse = {
   roadmap_summary: string;
   skill_gaps: string[];
   recommendations: Recommendation[];
   real_world_tasks: string[];
+  sources: KnowledgeSource[];
 };
 
 export type SkillGapItem = {
@@ -34,6 +55,7 @@ export type SkillGapResponse = {
   overview: string;
   gaps: SkillGapItem[];
   priority_skills: string[];
+  sources: KnowledgeSource[];
 };
 
 export type DailyTask = {
@@ -46,6 +68,7 @@ export type WeeklyPlanResponse = {
   summary: string;
   weekly_plan: DailyTask[];
   stretch_goal: string;
+  sources: KnowledgeSource[];
 };
 
 export type Badge = {
@@ -64,4 +87,10 @@ export type LeaderboardEntry = {
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+};
+
+export type ChatResponse = {
+  message: string;
+  suggestions: string[];
+  sources: KnowledgeSource[];
 };

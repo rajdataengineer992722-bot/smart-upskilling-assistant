@@ -1,6 +1,7 @@
 import { api } from "@/api/client";
 import type {
   ChatMessage,
+  ChatResponse,
   RecommendationResponse,
   SkillGapResponse,
   WeeklyPlanResponse,
@@ -28,6 +29,6 @@ export async function getWeeklyPlan(payload: RecommendationPayload & { available
 }
 
 export async function sendChat(messages: ChatMessage[]) {
-  const { data } = await api.post<{ message: string; suggestions: string[] }>("/chat", { messages });
+  const { data } = await api.post<ChatResponse>("/chat", { messages, use_rag: true });
   return data;
 }

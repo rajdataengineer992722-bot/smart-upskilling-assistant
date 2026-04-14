@@ -1,4 +1,5 @@
 import { CalendarDays } from "lucide-react";
+import { SourceList } from "@/components/source-list";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { WeeklyPlanResponse } from "@/types";
 
@@ -35,6 +36,7 @@ export function WeeklyPlanCard({ plan }: WeeklyPlanCardProps) {
         <div className="rounded-3xl bg-emerald-50 p-4 text-sm text-emerald-900">
           Stretch goal: {plan.stretch_goal}
         </div>
+        <SourceList sources={plan.sources} title="Knowledge grounding" />
       </CardContent>
     </Card>
   );

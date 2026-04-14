@@ -7,3 +7,4 @@ backend/app/**/__pycache__/
 dist/
 .mongodb/
 .run-logs/
+frontend/*.tsbuildinfo

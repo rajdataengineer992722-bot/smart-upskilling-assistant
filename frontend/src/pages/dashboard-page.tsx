@@ -4,6 +4,7 @@ import { getRecommendations, getSkillGapAnalysis, getWeeklyPlan } from "@/api/as
 import { getProfile } from "@/api/user";
 import { ChatPanel } from "@/components/chat-panel";
 import { ProfileCard } from "@/components/profile-card";
+import { SourceList } from "@/components/source-list";
 import { SkillGapChart } from "@/components/skill-gap-chart";
 import { WeeklyPlanCard } from "@/components/weekly-plan-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -128,6 +129,7 @@ export function DashboardPage() {
                     </div>
                   ))}
                 </div>
+                <SourceList sources={recommendationQuery.data.sources} title="Knowledge grounding" />
               </CardContent>
             </Card>
           ) : null}

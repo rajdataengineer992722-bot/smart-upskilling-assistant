@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, BookOpenCheck } from "lucide-react";
 import { getRecommendations } from "@/api/assistant";
 import { getProfile } from "@/api/user";
+import { SourceList } from "@/components/source-list";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -81,6 +82,7 @@ export function RecommendationsPage() {
                 {task}
               </div>
             ))}
+            <SourceList sources={recommendationQuery.data?.sources ?? []} />
           </CardContent>
         </Card>
       </section>

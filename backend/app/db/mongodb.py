@@ -13,6 +13,11 @@ async def connect_to_mongo() -> None:
     database = client[settings.database_name]
     await database.users.create_index("email", unique=True)
     await database.learning_plans.create_index("user_id", unique=True)
+    await database.knowledge_documents.create_index("created_at")
+    await database.knowledge_documents.create_index("title")
+    await database.knowledge_chunks.create_index("document_id")
+    await database.knowledge_chunks.create_index("roles")
+    await database.knowledge_chunks.create_index("tags")
 
 
 async def close_mongo_connection() -> None:
